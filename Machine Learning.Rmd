@@ -1,0 +1,158 @@
+---
+title: "Machine Learning"
+author: "Javier de la Vega"
+date: "22 de agosto de 2015"
+output: html_document
+---
+
+
+###Background
+
+Using devices such as Jawbone Up, Nike FuelBand, and Fitbit it is now possible to collect a large amount of data about personal activity relatively inexpensively. These type of devices are part of the quantified self movement - a group of enthusiasts who take measurements about themselves regularly to improve their health, to find patterns in their behavior, or because they are tech geeks. One thing that people regularly do is quantify how much of a particular activity they do, but they rarely quantify how well they do it. In this project, your goal will be to use data from accelerometers on the belt, forearm, arm, and dumbell of 6 participants. They were asked to perform barbell lifts correctly and incorrectly in 5 different ways. More information is available from the website here: http://groupware.les.inf.puc-rio.br/har (see the section on the Weight Lifting Exercise Dataset). 
+
+
+
+
+###Data 
+
+The training data for this project are available here: 
+
+https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv
+
+The test data are available here: 
+
+https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv
+
+The data for this project come from this source: http://groupware.les.inf.puc-rio.br/har. If you use the document you create for this class for any purpose please cite them as they have been very generous in allowing their data to be used for this kind of assignment. 
+
+
+
+###What you should submit
+
+The goal of your project is to predict the manner in which they did the exercise. This is the "classe" variable in the training set. You may use any of the other variables to predict with. You should create a report describing how you built your model, how you used cross validation, what you think the expected out of sample error is, and why you made the choices you did. You will also use your prediction model to predict 20 different test cases. 
+
+1. Your submission should consist of a link to a Github repo with your R markdown and compiled HTML file describing your analysis. Please constrain the text of the writeup to < 2000 words and the number of figures to be less than 5. It will make it easier for the graders if you submit a repo with a gh-pages branch so the HTML page can be viewed online (and you always want to make it easy on graders :-).
+2. You should also apply your machine learning algorithm to the 20 test cases available in the test data above. Please submit your predictions in appropriate format to the programming assignment for automated grading. See the programming assignment for additional details.
+
+
+
+## Report
+
+### Librerías utilizadas
+```{r librerías}
+library(ggplot2)
+library(lattice)
+library(caret)
+
+library(randomForest)
+library(rpart)
+library(kernlab)
+
+```
+
+```{r ruta, echo=FALSE}
+setwd("C:\\JAVIER\\HITSS\\_00 Big Data\\00 Data Scientist\\Cousera\\_Especializacion\\08 Practical Machine Learning\\Project")
+
+```
+
+```{r archivo}
+training = read.csv("pml-training.csv", na.strings = c("NA","", "#DIV/0!" ), header = T)
+testing = read.csv("pml-testing.csv", na.strings = c("NA","", "#DIV/0!" ), header = T)
+
+```
+
+The number of null values that has the file is verified
+
+```{r val_NA}
+table(is.na(training))
+table(is.na(testing))
+
+```
+
+Because records have too many null values that do not help the model to predict accurately, proceed to clean the columns with null values and the first 7 columns, which are not required for the process is also removed.
+
+```{r limpiar}
+countOfNA<-sapply(training, function(x) sum(is.na(x)))
+training <- training[,which(countOfNA == 0)]
+training = training[,-c(1:7)]
+countOfNA<-sapply(testing, function(x) sum(is.na(x)))
+testing <- testing[,which(countOfNA == 0)]
+testing = testing[,-c(1:7)]
+
+```
+
+
+
+Subsets are created from training set and having distributions in both subsets classes are presented.
+
+```{r subconjunto}
+inTrain = createDataPartition(y=training$classe, p=0.7, list=FALSE)
+subTraining = training[inTrain, ]; subTesting = training[-inTrain,]
+dim(subTraining); dim(subTesting)
+
+par(mfrow = c(1, 2))
+
+plot(subTraining$classe, col="blue", main="Bar Plot of levels of the variable classe",
+     xlab="classe levels training", ylab="Frequency")
+
+plot(subTesting$classe, col="green", main="Bar Plot of levels of the variable classe",
+     xlab="classe levels testing", ylab="Frequency")
+
+par(mfrow = c(1, 1))
+
+
+```
+
+
+
+3 different models are implemented to select the model with better accuracy.
+
+```{r modelo}
+################################################################################
+
+ptm = proc.time()
+
+tc <- trainControl(method = "cv", number = 7, verboseIter=FALSE , preProcOptions="pca", allowParallel=TRUE)
+
+# Random Forest
+model_rf = train(classe ~., method="rf", data=subTraining, trControl = tc)
+print(model_rf)
+max(model_rf$results$Accuracy)
+
+# SVM Linear
+model_svm = train(classe ~., method="svmLinear", data=subTraining, trControl = tc)
+print(model_svm)
+max(model_svm$results$Accuracy)
+
+# Decision tree
+model_rpart = train(classe ~., method="rpart", data=subTraining, trControl = tc)
+print(model_rpart)
+max(model_rpart$results$Accuracy)
+
+proc.time() - ptm
+
+
+```
+
+
+
+Because the Random Forest model is the one with better accuracy, it is the one that is selected to predict the results with test subsets.
+
+First is predicted on the subset of Training subsequently are predicted on the subset of testing finally is predicted over the original file of testing and obtain the results on the 20 values.
+
+```{r pruebas}
+
+pred_train = predict(model_rf, subTraining)
+table(pred_train, subTraining$classe)
+
+pred_test = predict(model_rf, subTesting)
+table(pred_test, subTesting$classe)
+
+pred_fin = predict(model_rf, testing, type = "raw")
+pred_fin
+
+proc.time() - ptm
+
+
+```
+
